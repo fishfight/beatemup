@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use bevy_parallax::ParallaxMoveEvent;
-use iyes_loopless::prelude::*;
 
 use crate::{consts, metadata::GameMeta, movement::VelocitySystems, GameState, Player};
 
@@ -12,14 +11,11 @@ impl Plugin for CameraPlugin {
             // Register reflect types
             .register_type::<YSort>()
             // Add systems
-            .add_system_set_to_stage(
-                CoreStage::PostUpdate,
-                ConditionSet::new()
-                    .run_in_state(GameState::InGame)
-                    .after(VelocitySystems)
-                    .with_system(camera_follow_player)
-                    .with_system(y_sort)
-                    .into(),
+            .add_systems(
+                PostUpdate,
+                (camera_follow_player, y_sort)
+                    .run_if(in_state(GameState::InGame))
+                    .after(VelocitySystems),
             );
     }
 }
@@ -42,7 +38,7 @@ pub fn y_sort(mut query: Query<(&mut Transform, &YSort)>) {
 /// limitations of any kind - that's up to the players movement logic (e.g. max distance).
 pub fn camera_follow_player(
     player_query: Query<&Transform, With<Player>>,
-    camera_query: Query<&Transform, (With<Camera>, Without<Player>)>,
+    camera_query: Query<(Entity, &Transform), (With<Camera>, Without<Player>)>,
     mut move_event_writer: EventWriter<ParallaxMoveEvent>,
     game_meta: Res<GameMeta>,
 ) {
@@ -52,17 +48,21 @@ pub fn camera_follow_player(
         .max_by(|ax, bx| ax.total_cmp(bx));
 
     if let Some(max_player_x) = max_player_x {
-        let camera = camera_query.single();
+        let (camera, camera_transform) = camera_query.single();
 
         let max_player_x_diff =
-            max_player_x - camera.translation.x - game_meta.camera_move_right_boundary;
+            max_player_x - camera_transform.translation.x - game_meta.camera_move_right_boundary;
 
         if max_player_x_diff > 0. {
             // The x axis is handled by the parallax plugin.
             // The y axis value doesn't change.
 
             move_event_writer.send(ParallaxMoveEvent {
-                camera_move_speed: max_player_x_diff * consts::CAMERA_SPEED,
+                camera_move_speed: Vec2 {
+                    x: max_player_x_diff * consts::CAMERA_SPEED,
+                    y: 0.0,
+                },
+                camera,
             });
         }
     }

@@ -10,11 +10,11 @@ pub struct LocalizationPlugin;
 
 impl Plugin for LocalizationPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(FluentPlugin)
+        app.add_plugins(FluentPlugin)
             .init_resource::<Locale>()
             .insert_resource(Localization::new());
 
-        app.add_system(load_locales);
+        app.add_systems(Update, load_locales);
     }
 }
 

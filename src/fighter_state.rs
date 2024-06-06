@@ -1,9 +1,7 @@
 use std::{collections::VecDeque, time::Duration};
 
 use bevy::{prelude::*, reflect::FromType, utils::HashSet};
-use bevy_mod_js_scripting::ActiveScripts;
 use bevy_rapier2d::prelude::CollisionGroups;
-use iyes_loopless::prelude::*;
 use leafwing_input_manager::{plugin::InputManagerSystem, prelude::ActionState};
 use rand::Rng;
 
@@ -18,10 +16,7 @@ use crate::{
     enemy_ai,
     fighter::{Attached, AvailableAttacks, Inventory},
     input::PlayerAction,
-    item::{
-        AnimatedProjectile, Drop, Explodable, Item, ItemBundle, Projectile, ScriptItemGrabEvent,
-        ScriptItemThrowEvent,
-    },
+    item::{AnimatedProjectile, Drop, Explodable, Item, ItemBundle, Projectile},
     lifetime::Lifetime,
     metadata::{AttackMeta, AudioMeta, FighterMeta, ItemKind, ItemMeta, ItemSpawnMeta},
     movement::{AngularVelocity, Force, LinearVelocity},
@@ -33,65 +28,67 @@ use crate::{
 pub struct FighterStatePlugin;
 
 /// The system set that fighter state change intents are collected
-#[derive(Clone, SystemLabel)]
+#[derive(SystemSet, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FighterStateCollectSystems;
 
 impl Plugin for FighterStatePlugin {
     fn build(&self, app: &mut App) {
         app
             // The collect systems
-            .add_system_set_to_stage(
-                CoreStage::PreUpdate,
-                ConditionSet::new()
-                    .label(FighterStateCollectSystems)
-                    .after(InputManagerSystem::Update)
-                    .run_in_state(GameState::InGame)
-                    .with_system(collect_fighter_eliminations)
-                    .with_system(collect_hitstuns)
-                    .with_system(collect_player_actions)
-                    .with_system(
-                        enemy_ai::set_move_target_near_player.pipe(enemy_ai::emit_enemy_intents),
+            .add_systems(
+                PreUpdate,
+                (
+                    collect_fighter_eliminations,
+                    collect_hitstuns,
+                    collect_player_actions,
+                    (
+                        enemy_ai::set_move_target_near_player,
+                        enemy_ai::emit_enemy_intents,
                     )
-                    .into(),
+                        .chain(),
+                )
+                    .in_set(FighterStateCollectSystems)
+                    .after(InputManagerSystem::Update)
+                    .run_if(in_state(GameState::InGame)),
             )
             // The transition systems
-            .add_system_set_to_stage(
-                CoreStage::PreUpdate,
-                ConditionSet::new()
+            .add_systems(
+                PreUpdate,
+                (
+                    transition_from_idle,
+                    transition_from_chain,
+                    transition_from_flopping,
+                    transition_from_punching,
+                    transition_from_ground_slam,
+                    transition_from_hitstun,
+                    transition_from_melee_attacking,
+                    transition_from_shooting,
+                    transition_from_bomb_throw,
+                    transition_from_proj_attacking,
+                )
                     .after(FighterStateCollectSystems)
-                    .run_in_state(GameState::InGame)
-                    .with_system(transition_from_idle)
-                    .with_system(transition_from_chain)
-                    .with_system(transition_from_flopping)
-                    .with_system(transition_from_punching)
-                    .with_system(transition_from_ground_slam)
-                    .with_system(transition_from_hitstun)
-                    .with_system(transition_from_melee_attacking)
-                    .with_system(transition_from_shooting)
-                    .with_system(transition_from_bomb_throw)
-                    .with_system(transition_from_proj_attacking)
-                    .into(),
+                    .run_if(in_state(GameState::InGame)),
             )
             // State handler systems
-            .add_system_set_to_stage(
-                CoreStage::Update,
-                ConditionSet::new()
-                    .run_in_state(GameState::InGame)
-                    .with_system(idling)
-                    .with_system(chaining)
-                    .with_system(flopping)
-                    .with_system(punching)
-                    .with_system(ground_slam)
-                    .with_system(moving)
-                    .with_system(throwing)
-                    .with_system(grabbing)
-                    .with_system(hitstun)
-                    .with_system(dying)
-                    .with_system(melee_attacking)
-                    .with_system(shooting)
-                    .with_system(bomb_throw)
-                    .with_system(projectile_attacking)
-                    .into(),
+            .add_systems(
+                Update,
+                (
+                    idling,
+                    chaining,
+                    flopping,
+                    punching,
+                    ground_slam,
+                    moving,
+                    throwing,
+                    grabbing,
+                    hitstun,
+                    dying,
+                    melee_attacking,
+                    shooting,
+                    bomb_throw,
+                    projectile_attacking,
+                )
+                    .run_if(in_state(GameState::InGame)),
             );
     }
 }
@@ -141,7 +138,7 @@ impl StateTransition {
         commands.add(move |world: &mut World| {
             // Insert the component stored in this state transition onto the entity
             self.reflect_component
-                .insert(world, entity, self.data.as_reflect());
+                .insert(&mut world.entity_mut(entity), self.data.as_reflect());
         });
 
         self.is_additive
@@ -517,6 +514,21 @@ fn collect_fighter_eliminations(
 //
 // Transition states systems
 //
+//
+//
+
+fn transition_from<T: Component>(
+    mut commands: Commands,
+    mut fighters: Query<(Entity, &mut StateTransitionIntents), With<T>>,
+) {
+    for (entity, mut transition_intents) in &mut fighters {
+        transition_intents.transition_to_higher_priority_states::<T>(
+            entity,
+            Idling::PRIORITY,
+            &mut commands,
+        );
+    }
+}
 
 /// Initiate any transitions from the idling state
 fn transition_from_idle(
@@ -1578,8 +1590,6 @@ fn throwing(
     weapon_held: Query<(Entity, &Parent), With<MeleeWeapon>>,
     pweapon_held: Query<(Entity, &Parent), With<ProjectileWeapon>>,
     mut items_assets: ResMut<Assets<ItemMeta>>,
-    mut active_scripts: ResMut<ActiveScripts>,
-    mut script_item_throw_events: ResMut<Events<ScriptItemThrowEvent>>,
 ) {
     for (entity, fighter_transform, facing, mut inventory, available_attacks) in &mut fighters {
         // If the player has an item in their inventory
@@ -1598,12 +1608,6 @@ fn throwing(
                         facing,
                         false,
                     ));
-                }
-                ItemKind::Script { script_handle, .. } => {
-                    script_item_throw_events.send(ScriptItemThrowEvent {
-                        fighter: entity,
-                        script_handle: script_handle.clone_weak(),
-                    });
                 }
                 ItemKind::BreakableBox {
                     ref item_handle, ..
@@ -1640,12 +1644,7 @@ fn throwing(
                         item_handle: items_assets.add(item_meta.clone()),
                     };
                     let item_commands = commands.spawn(ItemBundle::new(&item_spawn_meta));
-                    ItemBundle::spawn(
-                        item_commands,
-                        &item_spawn_meta,
-                        &mut items_assets,
-                        &mut active_scripts,
-                    );
+                    ItemBundle::spawn(item_commands, &item_spawn_meta, &mut items_assets);
 
                     if let Some(mut available_attacks) = available_attacks {
                         available_attacks.attacks.pop();
@@ -1668,12 +1667,7 @@ fn throwing(
                         item_handle: items_assets.add(item_meta.clone()),
                     };
                     let item_commands = commands.spawn(ItemBundle::new(&item_spawn_meta));
-                    ItemBundle::spawn(
-                        item_commands,
-                        &item_spawn_meta,
-                        &mut items_assets,
-                        &mut active_scripts,
-                    );
+                    ItemBundle::spawn(item_commands, &item_spawn_meta, &mut items_assets);
 
                     if let Some(mut available_attacks) = available_attacks {
                         available_attacks.attacks.pop();
@@ -1766,7 +1760,6 @@ fn grabbing(
     >,
     items_query: Query<(Entity, &Transform, &Handle<ItemMeta>), With<Item>>,
     items_assets: Res<Assets<ItemMeta>>,
-    mut script_item_grab_events: ResMut<Events<ScriptItemGrabEvent>>,
 ) {
     // We need to track the picked items, otherwise, in theory, two players could pick the same item.
     let mut picked_item_ids = HashSet::new();
@@ -1793,13 +1786,13 @@ fn grabbing(
                     // And our fighter isn't carrying another item
                     if fighter_inventory.is_none() {
                         match &items_assets.get(item).unwrap().kind {
-                            ItemKind::Script { script_handle, .. } => {
-                                script_item_grab_events.send(ScriptItemGrabEvent {
-                                    fighter: fighter_ent,
-                                    script_handle: script_handle.clone_weak(),
-                                });
-                                commands.entity(item_ent).despawn_recursive();
-                            }
+                            // ItemKind::Script { script_handle, .. } => {
+                            //     script_item_grab_events.send(ScriptItemGrabEvent {
+                            //         fighter: fighter_ent,
+                            //         script_handle: script_handle.clone_weak(),
+                            //     });
+                            //     commands.entity(item_ent).despawn_recursive();
+                            // }
                             ItemKind::Throwable { damage: _, .. } => {
                                 // If its throwable, pick up the item
                                 picked_item_ids.insert(item_ent);

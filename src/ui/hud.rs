@@ -1,7 +1,7 @@
 //! In-game HUD
 
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContext};
+use bevy_egui::{egui, EguiContexts};
 
 use crate::{
     damage::Health,
@@ -13,7 +13,9 @@ use crate::{
 };
 
 pub fn render_hud(
-    mut egui_context: ResMut<EguiContext>,
+    // mut egui_context: ResMut<EguiContext>,
+    mut egui_contexts: EguiContexts,
+    // egui_context: Query<&EguiContext, With<PrimaryWindow>>,
     players: Query<
         (
             &PlayerIndex,
@@ -46,6 +48,8 @@ pub fn render_hud(
     // Collect player info
     let mut players = players.iter().collect::<Vec<_>>();
     players.sort_by_key(|(player_i, _, _, _, _)| player_i.0);
+    // let egui_context = egui_context.get_single_mut().unwrap();
+    // let egui_context = egui_contexts.ctx_mut();
 
     let player_infos = players
         .into_iter()
@@ -55,11 +59,11 @@ pub fn render_hud(
                 PlayerInfo {
                     name: fighter.name.clone(),
                     life: **health as f32 / stats.max_health as f32,
-                    portrait_texture_id: egui_context
+                    portrait_texture_id: egui_contexts
                         .add_image(fighter.hud.portrait.image_handle.clone_weak()),
                     portrait_size: egui::Vec2::new(portrait_size.x, portrait_size.y),
                     item: inventory.as_ref().map(|item_meta| ItemInfo {
-                        texture_id: egui_context
+                        texture_id: egui_contexts
                             .add_image(item_meta.image.image_handle.clone_weak()),
                         size: egui::Vec2::new(
                             item_meta.image.image_size.x,
@@ -82,7 +86,7 @@ pub fn render_hud(
 
     egui::CentralPanel::default()
         .frame(egui::Frame::none())
-        .show(egui_context.ctx_mut(), |ui| {
+        .show(egui_contexts.ctx_mut(), |ui| {
             ui.add_space(10.0);
             ui.horizontal(|ui| {
                 for player in player_infos {

@@ -1,7 +1,5 @@
-use bevy::prelude::*;
-use bevy_mod_js_scripting::ActiveScripts;
-use bevy_parallax::ParallaxResource;
-use iyes_loopless::{prelude::*, state::NextState};
+use bevy::{prelude::*, window::PrimaryWindow};
+use bevy_parallax::CreateParallaxEvent;
 
 use rand::seq::SliceRandom;
 
@@ -23,7 +21,7 @@ use crate::{
 };
 
 use bevy::{ecs::system::SystemParam, render::camera::ScalingMode};
-use bevy_egui::{egui, EguiContext};
+use bevy_egui::{egui, EguiContexts};
 use bevy_fluent::Locale;
 use bevy_parallax::ParallaxCameraComponent;
 use leafwing_input_manager::{
@@ -40,31 +38,24 @@ pub struct LoadingPlugin;
 
 impl Plugin for LoadingPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(load_level.run_in_state(GameState::LoadingLevel))
-            .add_system(
+        app.add_systems(Update, load_level.run_if(in_state(GameState::LoadingLevel)))
+            .add_systems(
+                Update,
                 load_game
-                    .run_in_state(GameState::LoadingGame)
+                    .run_if(in_state(GameState::LoadingGame))
                     .run_if(game_assets_loaded),
             )
-            .add_system_set(
-                ConditionSet::new()
-                    .run_in_state(GameState::InGame)
-                    .with_system(load_fighters)
-                    .with_system(load_items)
-                    .into(),
+            .add_systems(
+                Update,
+                (load_fighters, load_items).run_if(in_state(GameState::InGame)),
             );
 
         // Configure hot reload
         if ENGINE_CONFIG.hot_reload {
-            app.add_system_to_stage(CoreStage::Last, hot_reload_game)
-                .add_system_set_to_stage(
-                    CoreStage::Last,
-                    ConditionSet::new()
-                        .run_in_state(GameState::InGame)
-                        .with_system(hot_reload_level)
-                        .with_system(hot_reload_fighters)
-                        .into(),
-                );
+            app.add_systems(Last, hot_reload_game).add_systems(
+                Last,
+                (hot_reload_level, hot_reload_fighters).run_if(in_state(GameState::InGame)),
+            );
         }
     }
 }
@@ -99,9 +90,9 @@ pub struct GameLoader<'w, 's> {
     commands: Commands<'w, 's>,
     game_handle: Res<'w, GameHandle>,
     assets: ResMut<'w, Assets<GameMeta>>,
-    egui_ctx: ResMut<'w, EguiContext>,
+    egui_ctx: EguiContexts<'w, 's>,
     events: EventReader<'w, 's, AssetEvent<GameMeta>>,
-    active_scripts: ResMut<'w, ActiveScripts>,
+    next_state: ResMut<'w, NextState<GameState>>,
 }
 
 impl<'w, 's> GameLoader<'w, 's> {
@@ -124,7 +115,8 @@ impl<'w, 's> GameLoader<'w, 's> {
             game_handle,
             mut assets,
             mut egui_ctx,
-            mut active_scripts,
+            //
+            mut next_state,
             ..
         } = self;
 
@@ -140,9 +132,6 @@ impl<'w, 's> GameLoader<'w, 's> {
                 // event, we need to skip the next update event.
                 *skip_next_asset_update_event = true;
 
-                // Clear the active scripts
-                active_scripts.clear();
-
                 // One-time initialization
             } else {
                 // Initialize empty fonts for all game fonts.
@@ -157,7 +146,8 @@ impl<'w, 's> GameLoader<'w, 's> {
                 commands.insert_resource(EguiFontDefinitions(egui_fonts));
 
                 // Transition to the main menu when we are done
-                commands.insert_resource(NextState(GameState::MainMenu));
+                // commands.insert_resource(NextState(GameState::MainMenu));
+                next_state.set(GameState::MainMenu);
             }
 
             // Set the locale resource
@@ -174,7 +164,7 @@ impl<'w, 's> GameLoader<'w, 's> {
                 ScalingMode::FixedVertical(game.camera_height as f32);
             commands.spawn((
                 camera_bundle,
-                ParallaxCameraComponent,
+                ParallaxCameraComponent::default(),
                 InputManagerBundle {
                     input_map: menu_input_map(),
                     ..default()
@@ -199,11 +189,6 @@ impl<'w, 's> GameLoader<'w, 's> {
                 if let Some(border) = &mut button.borders.focused {
                     load_border_image(border);
                 }
-            }
-
-            // Set the active scripts
-            for script_handle in &game.script_handles {
-                active_scripts.insert(script_handle.clone_weak());
             }
 
             // Insert the game resource
@@ -253,6 +238,7 @@ fn menu_input_map() -> InputMap<MenuAction> {
                 positive_low: 0.5,
                 negative_low: -1.0,
                 value: None,
+                inverted: false,
             },
             MenuAction::Up,
         )
@@ -265,6 +251,7 @@ fn menu_input_map() -> InputMap<MenuAction> {
                 positive_low: 1.0,
                 negative_low: -0.5,
                 value: None,
+                inverted: false,
             },
             MenuAction::Left,
         )
@@ -277,6 +264,7 @@ fn menu_input_map() -> InputMap<MenuAction> {
                 positive_low: 1.0,
                 negative_low: -0.5,
                 value: None,
+                inverted: false,
             },
             MenuAction::Down,
         )
@@ -289,6 +277,7 @@ fn menu_input_map() -> InputMap<MenuAction> {
                 positive_low: 0.5,
                 negative_low: -1.0,
                 value: None,
+                inverted: false,
             },
             MenuAction::Right,
         )
@@ -327,14 +316,16 @@ fn load_level(
     mut commands: Commands,
     assets: Res<Assets<LevelMeta>>,
     mut items_assets: ResMut<Assets<ItemMeta>>,
-    mut parallax: ResMut<ParallaxResource>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-    asset_server: Res<AssetServer>,
+    // mut parallax: ResMut<ParallaxResource>,
+    mut create_parallax: EventWriter<CreateParallaxEvent>,
+    _texture_atlases: ResMut<Assets<TextureAtlas>>,
+    _asset_server: Res<AssetServer>,
     game: Res<GameMeta>,
-    windows: Res<Windows>,
+    _window_query: Query<&Window, With<PrimaryWindow>>,
     mut storage: ResMut<Storage>,
     loading_resources: LoadingResources,
-    mut active_scripts: ResMut<ActiveScripts>,
+    mut next_state: ResMut<NextState<GameState>>,
+    camera_query: Query<Entity, With<Camera>>,
 ) {
     if let Some(level) = assets.get(&level_handle) {
         // Track load progress
@@ -350,12 +341,17 @@ fn load_level(
             return;
         }
 
-        let window = windows.primary();
+        // let window = window_query.get_single().unwrap();
+        let camera = camera_query.get_single().unwrap();
 
         // Setup the parallax background
-        *parallax = level.parallax_background.get_resource();
-        parallax.window_size = Vec2::new(window.width(), window.height());
-        parallax.create_layers(&mut commands, &asset_server, &mut texture_atlases);
+        create_parallax.send(CreateParallaxEvent {
+            layers_data: level.parallax_background.get_layer_data(),
+            camera,
+        });
+        // * parallax = level.parallax_background.get_resource();
+        // parallax.window_size = Vec2::new(window.width(), window.height());
+        // parallax.create_layers(&mut commands, &asset_server, &mut texture_atlases);
 
         // Set the clear color
         commands.insert_resource(ClearColor(level.background_color()));
@@ -382,16 +378,11 @@ fn load_level(
         // Spawn the items
         for item_spawn_meta in &level.items {
             let item_commands = commands.spawn(ItemBundle::new(item_spawn_meta));
-            ItemBundle::spawn(
-                item_commands,
-                item_spawn_meta,
-                &mut items_assets,
-                &mut active_scripts,
-            )
+            ItemBundle::spawn(item_commands, item_spawn_meta, &mut items_assets)
         }
 
         commands.insert_resource(level.clone());
-        commands.insert_resource(NextState(GameState::InGame));
+        next_state.set(GameState::InGame);
     } else {
         trace!("Awaiting level load");
     }
@@ -400,24 +391,32 @@ fn load_level(
 /// Hot reloads level asset data
 fn hot_reload_level(
     mut commands: Commands,
-    mut parallax: ResMut<ParallaxResource>,
+    // mut parallax: ResMut<ParallaxResource>,
+    mut create_parallax: EventWriter<CreateParallaxEvent>,
     mut events: EventReader<AssetEvent<LevelMeta>>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    _texture_atlases: ResMut<Assets<TextureAtlas>>,
     level_handle: Res<LevelHandle>,
     assets: Res<Assets<LevelMeta>>,
-    asset_server: Res<AssetServer>,
-    windows: Res<Windows>,
+    _asset_server: Res<AssetServer>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+    camera_query: Query<Entity, With<Camera>>,
 ) {
     for event in events.iter() {
         if let AssetEvent::Modified { handle } = event {
             let level = assets.get(handle).unwrap();
             if handle == &**level_handle {
                 // Update the level background
-                let window = windows.primary();
-                parallax.despawn_layers(&mut commands);
-                *parallax = level.parallax_background.get_resource();
-                parallax.window_size = Vec2::new(window.width(), window.height());
-                parallax.create_layers(&mut commands, &asset_server, &mut texture_atlases);
+                let _window = window_query.get_single().unwrap();
+                let camera = camera_query.get_single().unwrap();
+                create_parallax.send(CreateParallaxEvent {
+                    layers_data: level.parallax_background.get_layer_data(),
+                    camera,
+                });
+
+                // parallax.despawn_layers(&mut commands);
+                // *parallax = level.parallax_background.get_resource();
+                // parallax.window_size = Vec2::new(window.width(), window.height());
+                // parallax.create_layers(&mut commands, &asset_server, &mut texture_atlases);
 
                 commands.insert_resource(ClearColor(level.background_color()));
             }

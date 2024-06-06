@@ -4,7 +4,7 @@ use bevy::{
     asset::{Asset, AssetLoader, AssetPath, LoadedAsset},
     prelude::AddAsset,
     prelude::*,
-    reflect::TypeUuid,
+    reflect::{TypePath, TypeUuid},
     utils::HashMap,
 };
 use bevy_egui::egui;
@@ -155,13 +155,13 @@ impl AssetLoader for GameMetaLoader {
                     .insert(font_name.clone(), font_handle);
             }
 
-            // Load the script handles
-            for script_relative_path in &meta.scripts {
-                let (script_path, script_handle) =
-                    get_relative_asset(load_context, &self_path, script_relative_path);
-                dependencies.push(script_path);
-                meta.script_handles.push(script_handle);
-            }
+            // // Load the script handles
+            // for script_relative_path in &meta.scripts {
+            //     let (script_path, script_handle) =
+            //         get_relative_asset(load_context, &self_path, script_relative_path);
+            //     dependencies.push(script_path);
+            //     meta.script_handles.push(script_handle);
+            // }
 
             load_context.set_default_asset(LoadedAsset::new(meta).with_dependencies(dependencies));
 
@@ -432,15 +432,15 @@ impl AssetLoader for ItemLoader {
                         spritesheet.atlas_handle.push(atlas_handle);
                     }
                 }
-                ItemKind::Script {
-                    script,
-                    ref mut script_handle,
-                } => {
-                    let (script_path, loaded_script_handle) =
-                        get_relative_asset(load_context, load_context.path(), script);
-                    dependencies.push(script_path);
-                    *script_handle = loaded_script_handle;
-                }
+                // ItemKind::Script {
+                //     script,
+                //     ref mut script_handle,
+                // } => {
+                //     let (script_path, loaded_script_handle) =
+                //         get_relative_asset(load_context, load_context.path(), script);
+                //     dependencies.push(script_path);
+                //     *script_handle = loaded_script_handle;
+                // }
                 ItemKind::Bomb { spritesheet, .. } => {
                     for (index, image) in spritesheet.image.iter().enumerate() {
                         let (texture_path, texture_handle) =
@@ -475,7 +475,7 @@ impl AssetLoader for ItemLoader {
     }
 }
 
-#[derive(Debug, Clone, TypeUuid)]
+#[derive(Debug, Clone, TypeUuid, TypePath)]
 #[uuid = "da277340-574f-4069-907c-7571b8756200"]
 pub struct EguiFont(pub egui::FontData);
 

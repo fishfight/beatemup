@@ -9,7 +9,6 @@ parallax_background:
       rows: 1
       z: 0
       scale: 0.9
-      transition_factor: 0.9
     - speed: 0.9
       path: background_02.2.png
       tile_size: [960, 540]
@@ -17,7 +16,6 @@ parallax_background:
       rows: 1
       z: 1
       scale: 0.9
-      transition_factor: 0.9
     - speed: 0.82
       path: background_03.png
       tile_size: [960, 540]
@@ -25,7 +23,6 @@ parallax_background:
       rows: 1
       z: 2
       scale: 0.9
-      transition_factor: 0.9
     - speed: 0.74
       path: background_04.2.png
       tile_size: [960, 540]
@@ -33,7 +30,6 @@ parallax_background:
       rows: 1
       z: 3
       scale: 0.9
-      transition_factor: 0.9
     - speed: 0
       path: background_05.2.png
       tile_size: [960, 540]
@@ -41,7 +37,6 @@ parallax_background:
       rows: 1
       z: 4
       scale: 0.9
-      transition_factor: 0.9
 
 players:
   # - fighter: /fighters/fishy/fishy.fighter.yaml
@@ -87,16 +82,16 @@ enemies:
 stop_points: [500, 1000]
 
 items:
-  - item: &health /items/health/health.item.yaml
-    location: [50, -70, 0]
+  # - item: &health /items/health/health.item.yaml
+  #   location: [50, -70, 0]
   - item: &bottle /items/bottle/bottle.item.yaml
     location: [100, -20, 0]
-  - item: &fishfood /items/fishfood/fishfood.item.yaml
-    location: [100, -70, 0]
-  - item: &pellets /items/pellets/pellets.item.yaml
-    location: [200, -70, 0]
-  - item: &poison /items/poison/poison.item.yaml
-    location: [100, -50, 0]  
+  # - item: &fishfood /items/fishfood/fishfood.item.yaml
+  #   location: [100, -70, 0]
+  # - item: &pellets /items/pellets/pellets.item.yaml
+  #   location: [200, -70, 0]
+  # - item: &poison /items/poison/poison.item.yaml
+  #   location: [100, -50, 0]  
   - item: &sword /items/sword/sword.item.yaml
     location: [-100, -20, 0]
   - item: &box /items/box/box.item.yaml

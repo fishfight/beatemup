@@ -27,6 +27,7 @@ impl Default for Damageable {
 }
 
 /// Event emitted when an entity is damaged
+#[derive(Event)]
 pub struct DamageEvent {
     pub damage_velocity: Vec2,
     pub damageing_entity: Entity,

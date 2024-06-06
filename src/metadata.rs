@@ -1,14 +1,13 @@
 use bevy::{
     math::{UVec2, Vec2, Vec3},
     prelude::{Color, Component, Deref, DerefMut, Handle, Image, Resource},
-    reflect::{FromReflect, Reflect, TypeUuid},
+    reflect::{Reflect, TypePath, TypeUuid},
     sprite::TextureAtlas,
-    utils::HashMap,
+    utils::{default, HashMap},
 };
 use bevy_egui::egui;
 use bevy_kira_audio::AudioSource;
-use bevy_mod_js_scripting::JsScript;
-use bevy_parallax::{LayerData, ParallaxResource};
+use bevy_parallax::{LayerData, LayerSpeed};
 use punchy_macros::HasLoadProgress;
 use serde::Deserialize;
 
@@ -26,7 +25,7 @@ pub use localization::TranslationsMeta;
 #[derive(Resource, Deref, DerefMut)]
 pub struct GameHandle(pub Handle<GameMeta>);
 
-#[derive(Resource, HasLoadProgress, TypeUuid, Deserialize, Clone, Debug)]
+#[derive(Resource, HasLoadProgress, TypeUuid, Deserialize, Clone, Debug, TypePath)]
 #[serde(deny_unknown_fields)]
 #[uuid = "eb28180f-ef68-44a0-8479-a299a3cef66e"]
 pub struct GameMeta {
@@ -40,10 +39,6 @@ pub struct GameMeta {
 
     pub default_settings: Settings,
     pub translations: TranslationsMeta,
-    #[serde(default)]
-    pub scripts: Vec<String>,
-    #[serde(skip)]
-    pub script_handles: Vec<Handle<JsScript>>,
 }
 
 #[derive(HasLoadProgress, Deserialize, Clone, Debug)]
@@ -74,7 +69,7 @@ pub struct ImageMeta {
 #[derive(Resource, Deref, DerefMut)]
 pub struct LevelHandle(pub Handle<LevelMeta>);
 
-#[derive(Resource, HasLoadProgress, TypeUuid, Deserialize, Clone, Debug)]
+#[derive(Resource, HasLoadProgress, TypeUuid, Deserialize, Clone, Debug, TypePath)]
 #[serde(deny_unknown_fields)]
 #[uuid = "32111f6e-bb9a-4ea7-8988-1220b923a059"]
 pub struct LevelMeta {
@@ -99,7 +94,7 @@ impl LevelMeta {
     }
 }
 
-#[derive(TypeUuid, Deserialize, Clone, Debug, Component)]
+#[derive(TypeUuid, Deserialize, Clone, Debug, Component, TypePath)]
 #[serde(deny_unknown_fields)]
 #[uuid = "d5e040c4-3de7-4b8a-b6c2-27f82f58d8f0"]
 pub struct FighterMeta {
@@ -117,7 +112,7 @@ pub struct FighterMeta {
     pub attachment: Option<FighterSpritesheetMeta>,
 }
 
-#[derive(TypeUuid, Deserialize, Clone, Debug, Component, Reflect, FromReflect)]
+#[derive(TypeUuid, Deserialize, Clone, Debug, Component, Reflect)]
 #[serde(deny_unknown_fields)]
 #[uuid = "45a912f4-ea5c-4eba-9ba9-f1a726140f28"]
 pub struct AttackMeta {
@@ -132,7 +127,7 @@ pub struct AttackMeta {
     pub item_handle: Handle<ItemMeta>,
 }
 
-#[derive(TypeUuid, Deserialize, Clone, Debug, Component)]
+#[derive(TypeUuid, Deserialize, Clone, Debug, Component, TypePath)]
 #[serde(deny_unknown_fields)]
 #[uuid = "5e2db270-ec2e-013a-92a8-2cf05d71216b"]
 pub struct ItemMeta {
@@ -181,12 +176,12 @@ pub enum ItemKind {
         ammo: usize,
         shoot_delay: f32,
     },
-    Script {
-        /// The relative asset path to the script for this item
-        script: String,
-        #[serde(skip)]
-        script_handle: Handle<JsScript>,
-    },
+    // Script {
+    //     /// The relative asset path to the script for this item
+    //     script: String,
+    //     #[serde(skip)]
+    //     script_handle: Handle<JsScript>,
+    // },
     Bomb {
         spritesheet: FighterSpritesheetMeta,
         attack_frames: AttackFrames,
@@ -259,8 +254,8 @@ pub struct ParallaxMeta {
 }
 
 impl ParallaxMeta {
-    pub fn get_resource(&self) -> ParallaxResource {
-        ParallaxResource::new(self.layers.iter().cloned().map(Into::into).collect())
+    pub fn get_layer_data(&self) -> Vec<LayerData> {
+        self.layers.iter().cloned().map(Into::into).collect()
     }
 }
 
@@ -276,7 +271,6 @@ pub struct ParallaxLayerMeta {
     pub rows: usize,
     pub scale: f32,
     pub z: f32,
-    pub transition_factor: f32,
     #[serde(default)]
     pub position: Vec2,
 }
@@ -284,20 +278,20 @@ pub struct ParallaxLayerMeta {
 impl From<ParallaxLayerMeta> for LayerData {
     fn from(meta: ParallaxLayerMeta) -> Self {
         Self {
-            speed: meta.speed,
+            speed: LayerSpeed::Horizontal(meta.speed),
             path: meta.path,
             tile_size: meta.tile_size,
             cols: meta.cols,
             rows: meta.rows,
             scale: meta.scale,
             z: meta.z,
-            transition_factor: meta.transition_factor,
             position: meta.position,
+            ..default()
         }
     }
 }
 
-#[derive(HasLoadProgress, Deserialize, Default, Copy, Clone, Debug, Reflect, FromReflect)]
+#[derive(HasLoadProgress, Deserialize, Default, Copy, Clone, Debug, Reflect)]
 #[serde(deny_unknown_fields)]
 pub struct ColliderMeta {
     //TODO: Add type of collider with different properties.

@@ -22,7 +22,7 @@ pub struct FighterPlugin;
 impl Plugin for FighterPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<AvailableAttacks>()
-            .add_system_to_stage(CoreStage::PostUpdate, attachment_system);
+            .add_systems(PostUpdate, attachment_system);
     }
 }
 
@@ -30,7 +30,6 @@ impl Plugin for FighterPlugin {
 #[derive(Bundle)]
 pub struct ActiveFighterBundle {
     pub name: Name,
-    #[bundle]
     pub animated_spritesheet_bundle: AnimatedSpriteSheetBundle,
     // #[bundle]
     // pub physics_bundle: PhysicsBundle,
@@ -225,7 +224,9 @@ pub fn attachment_system(
                 //Sync animation
                 if attached.sync_animation {
                     animation.current_frame = parent_animation.current_frame;
-                    animation.current_animation = parent_animation.current_animation.clone();
+                    animation
+                        .current_animation
+                        .clone_from(&parent_animation.current_animation);
                     animation.timer = parent_animation.timer.clone();
                     animation.played_once = parent_animation.played_once;
                 }

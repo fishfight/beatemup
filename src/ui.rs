@@ -1,6 +1,9 @@
-use bevy::{prelude::*, utils::HashMap, window::WindowId};
-use bevy_egui::{egui, EguiContext, EguiPlugin, EguiRenderInputContainer, EguiSettings};
-use iyes_loopless::prelude::*;
+use bevy::{
+    prelude::*,
+    utils::HashMap,
+    window::{PrimaryWindow, WindowMode},
+};
+use bevy_egui::{egui, EguiContexts, EguiInput, EguiPlugin, EguiSettings};
 use leafwing_input_manager::prelude::ActionState;
 
 use crate::{
@@ -27,55 +30,84 @@ pub struct UIPlugin;
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<WidgetAdjacencies>()
-            .add_plugin(EguiPlugin)
-            .add_system(handle_menu_input.run_if_resource_exists::<GameMeta>())
-            .add_enter_system(GameState::MainMenu, main_menu::spawn_main_menu_background)
-            .add_enter_system(GameState::MainMenu, audio::play_menu_music)
-            .add_exit_system(GameState::MainMenu, main_menu::despawn_main_menu_background)
-            .add_exit_system(GameState::MainMenu, audio::stop_menu_music)
-            .add_system(unpause.run_in_state(GameState::Paused))
-            .add_system_set(
-                ConditionSet::new()
-                    .run_in_state(GameState::InGame)
-                    .with_system(hud::render_hud)
-                    .with_system(pause)
-                    .into(),
+            .add_plugins(EguiPlugin)
+            // .add_system(handle_menu_input.run_if_resource_exists::<GameMeta>())
+            .add_systems(
+                OnEnter(GameState::MainMenu),
+                (
+                    main_menu::spawn_main_menu_background,
+                    audio::play_menu_music,
+                ),
             )
-            .add_system(update_egui_fonts)
-            .add_system(update_ui_scale.run_if_resource_exists::<GameMeta>())
-            .add_system_set(
-                ConditionSet::new()
-                    .run_in_state(GameState::Paused)
-                    .with_system(pause_menu::pause_menu)
-                    .into(),
+            // .add_enter_system(GameState::MainMenu, main_menu::spawn_main_menu_background)
+            // .add_enter_system(GameState::MainMenu, audio::play_menu_music)
+            .add_systems(
+                OnExit(GameState::MainMenu),
+                (
+                    main_menu::despawn_main_menu_background,
+                    audio::stop_menu_music,
+                ),
             )
-            .add_system_set(
-                ConditionSet::new()
-                    .run_in_state(GameState::MainMenu)
-                    .with_system(main_menu::main_menu_system)
-                    .into(),
+            // .add_exit_system(GameState::MainMenu, main_menu::despawn_main_menu_background)
+            // .add_exit_system(GameState::MainMenu, audio::stop_menu_music)
+            .add_systems(Update, unpause.run_if(in_state(GameState::Paused)))
+            .add_systems(
+                Update,
+                (hud::render_hud, pause).run_if(in_state(GameState::InGame)),
+            )
+            // .add_system_set(
+            //     ConditionSet::new()
+            //         .run_in_state(GameState::InGame)
+            //         .with_system(hud::render_hud)
+            //         .with_system(pause)
+            //         .into(),
+            // )
+            .add_systems(Update, update_egui_fonts)
+            .add_systems(
+                Update,
+                (update_ui_scale, handle_menu_input).run_if(resource_exists::<GameMeta>()),
+            )
+            .add_systems(
+                Update,
+                pause_menu::pause_menu.run_if(in_state(GameState::Paused)),
+            )
+            // .add_system_set(
+            //     ConditionSet::new()
+            //         .run_in_state(GameState::Paused)
+            //         .with_system(pause_menu::pause_menu)
+            //         .into(),
+            // )
+            .add_systems(
+                Update,
+                main_menu::main_menu_system.run_if(in_state(GameState::MainMenu)),
             );
+        // .add_system_set(
+        //     ConditionSet::new()
+        //         .run_in_state(GameState::MainMenu)
+        //         .with_system(main_menu::main_menu_system)
+        //         .into(),
+        // );
 
         if ENGINE_CONFIG.debug_tools {
-            app.add_system(debug_tools::debug_tools_window)
-                .add_system_to_stage(CoreStage::Last, debug_tools::rapier_debug_render);
+            // app.add_systems(Update, debug_tools::debug_tools_window)
+            // add_systems(Last, debug_tools::rapier_debug_render);
         }
     }
 }
 
 /// Transition game to pause state
-fn pause(mut commands: Commands, input: Query<&ActionState<MenuAction>>) {
+fn pause(input: Query<&ActionState<MenuAction>>, mut next_state: ResMut<NextState<GameState>>) {
     let input = input.single();
     if input.just_pressed(MenuAction::Pause) {
-        commands.insert_resource(NextState(GameState::Paused));
+        next_state.set(GameState::Paused);
     }
 }
 
 // Transition game out of paused state
-fn unpause(mut commands: Commands, input: Query<&ActionState<MenuAction>>) {
+fn unpause(input: Query<&ActionState<MenuAction>>, mut next_state: ResMut<NextState<GameState>>) {
     let input = input.single();
     if input.just_pressed(MenuAction::Pause) {
-        commands.insert_resource(NextState(GameState::InGame));
+        next_state.set(GameState::Paused);
     }
 }
 
@@ -151,31 +183,36 @@ impl<'a> WidgetAdjacencyEntry<'a> {
 }
 
 fn handle_menu_input(
-    mut windows: ResMut<Windows>,
+    // mut windows: ResMut<Windows>,
+    mut windows: Query<&mut Window, With<PrimaryWindow>>,
     input: Query<&ActionState<MenuAction>>,
-    mut egui_inputs: ResMut<EguiRenderInputContainer>,
+    mut egui_input: Query<&mut EguiInput, With<PrimaryWindow>>,
+    // mut egui_inputs: ResMut<EguiRenderInputContainer>,
     adjacencies: Res<WidgetAdjacencies>,
-    mut egui_ctx: ResMut<EguiContext>,
+    // mut egui_ctx: Query<&EguiContext, With<PrimaryWindow>>,
+    mut egui_contexts: EguiContexts,
 ) {
     let input = input.single();
 
     // Handle fullscreen toggling
     if input.just_pressed(MenuAction::ToggleFullscreen) {
-        if let Some(window) = windows.get_primary_mut() {
-            window.set_mode(match window.mode() {
-                WindowMode::BorderlessFullscreen => WindowMode::Windowed,
-                _ => WindowMode::BorderlessFullscreen,
-            });
-        }
+        // let mut window: &mut bevy::prelude::Window = windows.get_single_mut().unwrap();
+        let mut window = windows.get_single_mut().unwrap();
+        window.mode = match window.mode {
+            WindowMode::BorderlessFullscreen => WindowMode::Windowed,
+            _ => WindowMode::BorderlessFullscreen,
+        };
     }
 
-    let events = &mut egui_inputs.get_mut(&WindowId::primary()).unwrap().0.events;
+    // let events = &mut egui_inputs.get_mut(&WindowId::primary()).unwrap().0.events;
+    let events = &mut egui_input.get_single_mut().unwrap().0.events;
 
     if input.just_pressed(MenuAction::Confirm) {
         events.push(egui::Event::Key {
             key: egui::Key::Enter,
             pressed: true,
             modifiers: egui::Modifiers::NONE,
+            repeat: false,
         });
     }
 
@@ -187,39 +224,44 @@ fn handle_menu_input(
                 key: egui::Key::Tab,
                 pressed: true,
                 modifiers: egui::Modifiers::SHIFT,
+                repeat: false,
             });
         } else if input.just_pressed(MenuAction::Down) || input.just_pressed(MenuAction::Right) {
             events.push(egui::Event::Key {
                 key: egui::Key::Tab,
                 pressed: true,
                 modifiers: egui::Modifiers::NONE,
+                repeat: false,
             });
         }
     };
 
-    let mut memory = egui_ctx.ctx_mut().memory();
-    if let Some(adjacency) = memory.focus().and_then(|id| adjacencies.get(&id)) {
+    let ctx = egui_contexts.ctx_mut();
+    if let Some(adjacency) = ctx.memory(|memory| memory.focus().and_then(|id| adjacencies.get(&id)))
+    {
+        // let mut memory = egui_ctx.ctx_mut().memory();
+        // if let Some(adjacency) = memory.focus().and_then(|id| adjacencies.get(&id)) {
         if input.just_pressed(MenuAction::Up) {
             if let Some(adjacent) = adjacency.up {
-                memory.request_focus(adjacent);
+                ctx.memory_mut(|memory| memory.request_focus(adjacent));
             } else {
                 tab_fallback()
             }
         } else if input.just_pressed(MenuAction::Down) {
             if let Some(adjacent) = adjacency.down {
-                memory.request_focus(adjacent);
+                ctx.memory_mut(|memory| memory.request_focus(adjacent));
             } else {
                 tab_fallback()
             }
         } else if input.just_pressed(MenuAction::Left) {
             if let Some(adjacent) = adjacency.left {
-                memory.request_focus(adjacent);
+                ctx.memory_mut(|memory| memory.request_focus(adjacent));
             } else {
                 tab_fallback()
             }
         } else if input.just_pressed(MenuAction::Right) {
             if let Some(adjacent) = adjacency.right {
-                memory.request_focus(adjacent);
+                ctx.memory_mut(|memory| memory.request_focus(adjacent));
             } else {
                 tab_fallback()
             }
@@ -233,7 +275,8 @@ fn handle_menu_input(
 /// [`GameMeta`], inserting the font data into the egui context.
 fn update_egui_fonts(
     mut font_queue: Local<Vec<Handle<EguiFont>>>,
-    mut egui_ctx: ResMut<EguiContext>,
+    // mut egui_ctx: Query<&EguiContext, With<PrimaryWindow>>,
+    mut egui_contexts: EguiContexts,
     egui_font_definitions: Option<ResMut<EguiFontDefinitions>>,
     game: Option<Res<GameMeta>>,
     mut events: EventReader<AssetEvent<EguiFont>>,
@@ -267,7 +310,7 @@ fn update_egui_fonts(
                 // Get the font asset
                 if let Some(font) = assets.get(&handle) {
                     // And insert it into the Egui font definitions
-                    let ctx = egui_ctx.ctx_mut();
+                    let ctx = egui_contexts.ctx_mut();
                     egui_font_definitions
                         .font_data
                         .insert(font_name.clone(), font.0.clone());
@@ -289,10 +332,10 @@ fn update_egui_fonts(
 /// will be the same size as a pixel in our sprites.
 fn update_ui_scale(
     mut egui_settings: ResMut<EguiSettings>,
-    windows: Res<Windows>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
     projection: Query<&OrthographicProjection, With<Camera>>,
 ) {
-    if let Some(window) = windows.get_primary() {
+    if let Ok(window) = window_query.get_single() {
         if let Ok(projection) = projection.get_single() {
             match projection.scaling_mode {
                 bevy::render::camera::ScalingMode::FixedVertical(height) => {
@@ -305,9 +348,7 @@ fn update_ui_scale(
                     let scale = window_width / width;
                     egui_settings.scale_factor = scale as f64;
                 }
-                bevy::render::camera::ScalingMode::Auto { .. } => (),
-                bevy::render::camera::ScalingMode::None => (),
-                bevy::render::camera::ScalingMode::WindowSize => (),
+                _ => (),
             }
         }
     }

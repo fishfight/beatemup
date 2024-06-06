@@ -21,10 +21,8 @@ pub struct PlayerBundle {
     index: PlayerIndex,
     facing: Facing,
     inventory: Inventory,
-    #[bundle]
     transform_bundle: TransformBundle,
     fighter_handle: Handle<FighterMeta>,
-    #[bundle]
     input_manager_bundle: InputManagerBundle<PlayerAction>,
 }
 

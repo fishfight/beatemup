@@ -1,13 +1,7 @@
 use std::time::Duration;
 
-use bevy::{
-    hierarchy::DespawnRecursiveExt,
-    math::Vec2,
-    prelude::*,
-    reflect::{FromReflect, Reflect},
-};
+use bevy::{hierarchy::DespawnRecursiveExt, math::Vec2, prelude::*, reflect::Reflect};
 use bevy_rapier2d::prelude::*;
-use iyes_loopless::prelude::*;
 
 use serde::Deserialize;
 
@@ -30,17 +24,18 @@ impl Plugin for AttackPlugin {
             // Register reflect types
             .register_type::<Attack>()
             // Add systems
-            .add_system_set(
-                ConditionSet::new()
-                    .run_in_state(GameState::InGame)
-                    .with_system(activate_hitbox)
-                    .with_system(deactivate_hitbox)
-                    .with_system(breakable_system)
-                    .with_system(damage_flash)
-                    .into(),
+            .add_systems(
+                Update,
+                (
+                    activate_hitbox,
+                    deactivate_hitbox,
+                    breakable_system,
+                    damage_flash,
+                )
+                    .run_if(in_state(GameState::InGame)),
             )
             // Attack damage is run in PostUpdate to make sure it runs after rapier generates collision events
-            .add_system_to_stage(CoreStage::PostUpdate, attack_damage_system)
+            .add_systems(PostUpdate, attack_damage_system)
             // Event for when Breakable breaks
             .add_event::<BrokeEvent>();
     }
@@ -89,6 +84,7 @@ impl Breakable {
     }
 }
 
+#[derive(Event)]
 pub struct BrokeEvent {
     pub drop: Option<Drop>,
     pub transform: Option<Transform>,
@@ -100,7 +96,7 @@ pub struct BrokeEvent {
 /// Must be added to an entity that is a child of an entity with an [`Animation`] and an [`Attack`]
 /// and will be used to spawn a collider for that attack during the `active` frames.
 /// Each field is an index refering to an animation frame
-#[derive(Component, Debug, Clone, Copy, Deserialize, Reflect, FromReflect)]
+#[derive(Component, Debug, Clone, Copy, Deserialize, Reflect)]
 pub struct AttackFrames {
     pub startup: usize,
     pub active: usize,

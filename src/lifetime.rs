@@ -6,7 +6,7 @@ pub struct LifetimePlugin;
 
 impl Plugin for LifetimePlugin {
     fn build(&self, app: &mut App) {
-        app.add_system_to_stage(CoreStage::Last, lifetime_system)
+        app.add_systems(Last, lifetime_system)
             .add_event::<LifetimeExpired>();
     }
 }
@@ -35,6 +35,7 @@ fn lifetime_system(
     }
 }
 
+#[derive(Event)]
 pub struct LifetimeExpired {
     pub drop: Option<Drop>,
     pub transform: Option<Transform>,

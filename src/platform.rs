@@ -4,7 +4,6 @@
 
 use async_channel::{Receiver, Sender};
 use bevy::{prelude::*, tasks::IoTaskPool, utils::HashMap};
-use iyes_loopless::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -22,8 +21,10 @@ impl Plugin for PlatformPlugin {
         #[cfg(target_arch = "wasm32")]
         app.add_system(wasm::update_canvas_size);
 
-        app.init_resource::<Storage>()
-            .add_system(load_storage.run_in_state(GameState::LoadingStorage));
+        app.init_resource::<Storage>().add_systems(
+            Update,
+            load_storage.run_if(in_state(GameState::LoadingStorage)),
+        );
     }
 }
 
@@ -33,8 +34,9 @@ impl Plugin for PlatformPlugin {
 /// Will transition to [`GameState::LoadingGame`] when finished.
 pub fn load_storage(
     mut started: Local<bool>,
-    mut commands: Commands,
+    _commands: Commands,
     mut storage: ResMut<Storage>,
+    mut next_state: ResMut<NextState<GameState>>,
 ) {
     // If we haven't started loading
     if !*started {
@@ -47,7 +49,7 @@ pub fn load_storage(
     } else if storage.is_loaded() {
         debug!("Platform storage loaded");
         // Load game
-        commands.insert_resource(NextState(GameState::LoadingGame));
+        next_state.set(GameState::LoadingGame);
     }
 }
 

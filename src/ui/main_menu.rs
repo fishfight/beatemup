@@ -1,10 +1,16 @@
-use bevy::{app::AppExit, ecs::system::SystemParam, prelude::*};
+use bevy::{
+    app::AppExit,
+    ecs::system::SystemParam,
+    input::gamepad::{GamepadAxisChangedEvent, GamepadEvent},
+    prelude::*,
+    window::PrimaryWindow,
+};
 use bevy_egui::{egui::style::Margin, *};
 use bevy_fluent::Localization;
 use egui_extras::Column;
-use iyes_loopless::state::NextState;
 use leafwing_input_manager::{
-    axislike::SingleAxis, prelude::ActionState, user_input::InputKind, Actionlike,
+    axislike::AxisType, axislike::SingleAxis, prelude::ActionState, user_input::InputKind,
+    Actionlike,
 };
 
 use crate::{
@@ -28,9 +34,9 @@ pub struct MainMenuBackground;
 pub fn spawn_main_menu_background(
     mut commands: Commands,
     game: Res<GameMeta>,
-    windows: Res<Windows>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
-    let window = windows.primary();
+    let window = window_query.get_single().unwrap();
     let bg_handle = game.main_menu.background_image.image_handle.clone();
     let img_size = game.main_menu.background_image.image_size;
     let ratio = img_size.x / img_size.y;
@@ -103,27 +109,29 @@ pub struct MenuSystemParams<'w, 's> {
     game: Res<'w, GameMeta>,
     localization: Res<'w, Localization>,
     menu_input: Query<'w, 's, &'static mut ActionState<MenuAction>>,
-    app_exit: EventWriter<'w, 's, AppExit>,
+    app_exit: EventWriter<'w, AppExit>,
     storage: ResMut<'w, Storage>,
     adjacencies: ResMut<'w, WidgetAdjacencies>,
     control_inputs: ControlInputBindingEvents<'w, 's>,
+    next_state: ResMut<'w, NextState<GameState>>,
 }
 
 /// Render the main menu UI
-pub fn main_menu_system(mut params: MenuSystemParams, mut egui_context: ResMut<EguiContext>) {
+pub fn main_menu_system(mut params: MenuSystemParams, mut egui_contexts: EguiContexts) {
     let menu_input = params.menu_input.single();
+    let egui_context = egui_contexts.ctx_mut();
 
     // Go to previous menu if back button is pressed
     if menu_input.pressed(MenuAction::Back) {
         if let MenuPage::Settings { .. } = *params.menu_page {
             *params.menu_page = MenuPage::Main;
-            egui_context.ctx_mut().clear_focus();
+            egui_context.clear_focus();
         }
     }
 
     egui::CentralPanel::default()
         .frame(egui::Frame::none())
-        .show(egui_context.ctx_mut(), |ui| {
+        .show(egui_context, |ui| {
             let screen_rect = ui.max_rect();
 
             // Calculate a margin
@@ -165,6 +173,7 @@ fn main_menu_ui(params: &mut MenuSystemParams, ui: &mut egui::Ui) {
         localization,
         app_exit,
         storage,
+        next_state,
         ..
     } = params;
 
@@ -189,7 +198,7 @@ fn main_menu_ui(params: &mut MenuSystemParams, ui: &mut egui::Ui) {
 
         if start_button.clicked() || ENGINE_CONFIG.auto_start {
             commands.insert_resource(LevelHandle(game.start_level_handle.clone()));
-            commands.insert_resource(NextState(GameState::LoadingLevel));
+            next_state.set(GameState::LoadingLevel);
         }
 
         // Settings button
@@ -697,6 +706,7 @@ pub struct ControlInputBindingEvents<'w, 's> {
     keys: Res<'w, Input<KeyCode>>,
     gamepad_buttons: Res<'w, Input<GamepadButton>>,
     gamepad_events: EventReader<'w, 's, GamepadEvent>,
+    gamepad_axis_events: EventReader<'w, 's, GamepadAxisChangedEvent>,
 }
 
 /// The kind of input binding to listen for.
@@ -728,31 +738,40 @@ impl<'w, 's> ControlInputBindingEvents<'w, 's> {
                 if let Some(&button) = self.gamepad_buttons.get_just_pressed().next() {
                     Some(button.button_type.into())
 
-                // If we can't find a button pressed
+                    //something weird going on here, whey do we need direct access to bevy gamepad
+                    //axis and also LWIM axis events?
+                    // If we can't find a button pressed
                 } else {
                     // Look for axes tilted more than 0.5 in either direction.
-                    for gamepad_event in self.gamepad_events.iter() {
-                        if let GamepadEventType::AxisChanged(axis, value) = gamepad_event.event_type
+                    for event in self.gamepad_axis_events.iter() {
+                        let GamepadAxisChangedEvent {
+                            gamepad: _,
+                            axis_type,
+                            value,
+                        } = event;
                         {
+                            let axis_type = AxisType::from(*axis_type);
                             // Create an axis positive movement binding
-                            if value > 0.5 {
+                            if *value > 0.5 {
                                 return Ok(Some(
                                     SingleAxis {
-                                        axis_type: axis.into(),
+                                        axis_type,
                                         positive_low: 0.1,
                                         negative_low: -1.0,
                                         value: None,
+                                        inverted: false,
                                     }
                                     .into(),
                                 ));
-                            // Create an axis negative movement binding
-                            } else if value < -0.5 {
+                                // Create an axis negative movement binding
+                            } else if *value < -0.5 {
                                 return Ok(Some(
                                     SingleAxis {
-                                        axis_type: axis.into(),
+                                        axis_type,
                                         positive_low: 1.0,
                                         negative_low: -0.1,
                                         value: None,
+                                        inverted: false,
                                     }
                                     .into(),
                                 ));

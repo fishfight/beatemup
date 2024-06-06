@@ -3,7 +3,6 @@ use bevy::{
     prelude::*,
     time::Time,
 };
-use iyes_loopless::prelude::*;
 
 use crate::{
     consts::{self, LEFT_BOUNDARY_MAX_DISTANCE},
@@ -15,10 +14,10 @@ use crate::{
 /// Plugin handling movement and rotation through velocities and torques.
 pub struct MovementPlugin;
 
-#[derive(Clone, SystemLabel)]
+#[derive(SystemSet, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ForceSystems;
 
-#[derive(Clone, SystemLabel)]
+#[derive(SystemSet, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VelocitySystems;
 
 impl Plugin for MovementPlugin {
@@ -32,32 +31,24 @@ impl Plugin for MovementPlugin {
             // Init resources
             .init_resource::<LeftMovementBoundary>()
             // Add systems that modify velocity based on forces
-            .add_system_set_to_stage(
-                CoreStage::PostUpdate,
-                ConditionSet::new()
-                    .label(ForceSystems)
-                    .run_in_state(GameState::InGame)
-                    .with_system(force_system)
-                    .with_system(torque_system)
-                    .into(),
+            .add_systems(
+                PostUpdate,
+                (force_system, torque_system)
+                    .in_set(ForceSystems)
+                    .run_if(in_state(GameState::InGame)),
             )
             // Add systems that modify translation and rotation based on velocity
-            .add_system_set_to_stage(
-                CoreStage::PostUpdate,
-                ConditionSet::new()
-                    .label(VelocitySystems)
-                    .after(ForceSystems)
-                    .run_in_state(GameState::InGame)
-                    .with_system(
-                        // Here we add a chain of systems that act as constraints on movements, ending
-                        // the chain with the velocity system itself which applies the velocities to the
-                        // entities.
-                        update_left_movement_boundary
-                            .pipe(constrain_player_movement)
-                            .pipe(velocity_system),
-                    )
-                    .with_system(angular_velocity_system)
-                    .into(),
+            .add_systems(
+                PostUpdate,
+                (
+                    update_left_movement_boundary,
+                    constrain_player_movement,
+                    velocity_system,
+                )
+                    .chain()
+                    .in_set(VelocitySystems)
+                    .run_if(in_state(GameState::InGame))
+                    .after(ForceSystems),
             );
     }
 }

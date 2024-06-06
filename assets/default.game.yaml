@@ -4,10 +4,6 @@ camera_height: 448
 # For simplicity, this value can also be used for movement limitation calculations.
 camera_move_right_boundary: 150.
 
-scripts:
-  # Enable our demo script
-  # - scripts/demo_script.ts
-
 main_menu:
   title_font:
     family: ark
@@ -34,21 +30,26 @@ default_settings:
           axis_type: !Gamepad LeftStickY
           positive_low: 0.1
           negative_low: -1.0
+          inverted: false
 
         left: !SingleAxis
           axis_type: !Gamepad LeftStickX
           positive_low: 1.0
           negative_low: -0.1
+          inverted: false
 
         down: !SingleAxis
           axis_type: !Gamepad LeftStickY
           positive_low: 1.0
           negative_low: -0.1
+          inverted: false
 
         right: !SingleAxis
           axis_type: !Gamepad LeftStickX
           positive_low: 0.1
           negative_low: -1.0
+          inverted: false
+
       flop_attack: !GamepadButton South
       shoot: !GamepadButton East
       throw: !GamepadButton West
@@ -72,7 +73,7 @@ default_settings:
         left: !Keyboard Left
         right: !Keyboard Right
       flop_attack: !Keyboard Comma
-      shoot: !Keyboard RShift
+      shoot: !Keyboard ShiftRight
       throw: !Keyboard Period
 
 ui_theme:

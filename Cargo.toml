@@ -1,62 +1,60 @@
 [package]
-authors     = ["The Fish Folk Game & Spicy Lobster Developers"]
+authors = ["The Fish Folk Game & Spicy Lobster Developers"]
 description = "A 2.5D side-scroller beatemup"
-edition     = "2021"
-license     = "MIT OR Apache-2.0"
-name        = "punchy"
-version     = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+name = "punchy"
+version = "0.1.0"
 
 [workspace]
 members = [".", "macros"]
 
 [dependencies.bevy]
 default-features = false
-features         = ["x11", "png", "filesystem_watcher", "bevy_gilrs"]
-version          = "0.9"
+features = ["x11", "png", "filesystem_watcher", "bevy_gilrs"]
+version = "0.11.0"
 
 [dependencies]
 punchy_macros = { path = "./macros" }
 
-anyhow          = "1.0.58"
-bevy-parallax   = "0.3.0"
-bevy_egui       = "0.18.0"
-bevy_kira_audio = { version = "0.13.0", features = ["mp3"] }
-bevy_rapier2d   = { version = "0.20.0", features = ["debug-render-2d"] }
-egui_extras     = "0.20.0"
-getrandom       = { version = "0.2", features = ["js"] }
-iyes_loopless   = { version = "0.9.0", features = ["states"] }
-rand            = "0.8.5"
-serde           = { version = "1.0.137", features = ["derive"] }
-serde_yaml      = "0.9.2"
-structopt       = "0.3.26"
-thiserror       = "1.0.31"
+bevy-parallax = "0.6.1"
+anyhow = "1.0.72"
+bevy_egui = "0.21.0"
+bevy_kira_audio = { version = "0.16.0", features = ["mp3"] }
+bevy_rapier2d = { version = "0.22.0", features = ["debug-render-2d"] }
+egui_extras = "0.22.0"
+getrandom = { version = "0.2", features = ["js"] }
+rand = "0.8.5"
+serde = { version = "1.0.180", features = ["derive"] }
+serde_yaml = "0.9.2"
+structopt = "0.3.26"
+thiserror = "1.0.44"
 
-async-channel          = "1.6.1"
-bevy_fluent            = "0.5.0"
-bevy_mod_js_scripting  = { git = "https://github.com/jakobhellermann/bevy_mod_js_scripting.git" }
-directories            = "4.0.1"
-fluent                 = "0.16.0"
-fluent_content         = "0.0.3"
-leafwing-input-manager = { version = "0.7", default-features = false }
-once_cell              = "1.13.0"
-sys-locale             = "0.2.1"
-unic-langid            = "0.9.0"
+async-channel = "1.9.0"
+bevy_fluent = "0.7.0"
+directories = "5.0.1"
+fluent = "0.16.0"
+fluent_content = "0.0.5"
+leafwing-input-manager = { version = "0.10", default-features = false }
+once_cell = "1.13.0"
+sys-locale = "0.3.0"
+unic-langid = "0.9.0"
 
 # Debug tools
-bevy-inspector-egui        = { version = "0.15.0" }
-bevy-inspector-egui-rapier = { version = "0.9.0", features = ["rapier2d"] }
-bevy_mod_debugdump         = { version = "0.6.0", optional = true }
+bevy-inspector-egui = { version = "0.19.0" }
+# bevy-inspector-egui-rapier = { version = "0.9.0", features = ["rapier2d"] }
+bevy_mod_debugdump = { version = "0.8.0", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3", features = ["Window", "Location", "Storage"] }
 
 [features]
-default        = []
+default = []
 schedule_graph = ["bevy_mod_debugdump"]
 
 # Enable optimizations for dependencies but not for our code
 [profile.dev.package."*"]
-debug     = false
+debug = false
 opt-level = 3
 
 [profile.dev]
@@ -69,5 +67,5 @@ opt-level = 3
 # slower than opt-level=0.
 
 [profile.release]
-codegen-units = 1    # Improves physics performance for release builds
-lto           = true
+codegen-units = 1 # Improves physics performance for release builds
+lto = true

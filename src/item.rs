@@ -1,5 +1,5 @@
 use bevy::{ecs::system::EntityCommands, prelude::*};
-use bevy_mod_js_scripting::{ActiveScripts, JsScript};
+// use bevy_mod_js_scripting::{ActiveScripts, JsScript};
 use bevy_rapier2d::prelude::*;
 use rand::Rng;
 
@@ -18,23 +18,8 @@ pub struct ItemPlugin;
 
 impl Plugin for ItemPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(drop_system)
-            .add_system(explodable_system)
-            .add_event::<ScriptItemThrowEvent>()
-            .add_event::<ScriptItemGrabEvent>();
+        app.add_systems(Update, (drop_system, explodable_system));
     }
-}
-
-#[derive(Reflect, Clone)]
-pub struct ScriptItemThrowEvent {
-    pub fighter: Entity,
-    pub script_handle: Handle<JsScript>,
-}
-
-#[derive(Reflect, Clone)]
-pub struct ScriptItemGrabEvent {
-    pub fighter: Entity,
-    pub script_handle: Handle<JsScript>,
 }
 
 #[derive(Component)]
@@ -64,7 +49,7 @@ impl ItemBundle {
         mut commands: EntityCommands,
         item_spawn_meta: &ItemSpawnMeta,
         items_assets: &mut ResMut<Assets<ItemMeta>>,
-        active_scripts: &mut ActiveScripts,
+        // active_scripts: &mut ActiveScripts,
     ) {
         let ground_offset = Vec3::new(0.0, consts::GROUND_Y, consts::ITEM_LAYER);
         let transform_bundle = TransformBundle::from_transform(Transform::from_translation(
@@ -91,9 +76,9 @@ impl ItemBundle {
 
                 commands.insert((physics_bundle, Breakable::new(*hits, false)));
             }
-            ItemKind::Script { script_handle, .. } => {
-                active_scripts.insert(script_handle.clone());
-            }
+            // ItemKind::Script { script_handle, .. } => {
+            //     active_scripts.insert(script_handle.clone());
+            // }
             _ => (),
         }
 
@@ -107,7 +92,6 @@ impl ItemBundle {
 
 #[derive(Bundle)]
 pub struct Projectile {
-    #[bundle]
     sprite_bundle: SpriteBundle,
     velocity: LinearVelocity,
     angular_velocity: AngularVelocity,
@@ -217,7 +201,7 @@ fn drop_system(
     mut commands: Commands,
     mut broke_event: EventReader<BrokeEvent>,
     mut lifetime_event: EventReader<LifetimeExpired>,
-    mut active_scripts: ResMut<ActiveScripts>,
+    // mut active_scripts: ResMut<ActiveScripts>,
 ) {
     let mut drops = vec![];
     for event in lifetime_event.iter() {
@@ -244,7 +228,7 @@ fn drop_system(
             item_commands,
             &item_spawn_meta,
             &mut items_assets,
-            &mut active_scripts,
+            // &mut active_scripts,
         );
     }
 }
@@ -378,7 +362,6 @@ fn explodable_system(
 
 #[derive(Bundle)]
 pub struct AnimatedProjectile {
-    #[bundle]
     sprite_bundle: AnimatedSpriteSheetBundle,
     velocity: LinearVelocity,
     angular_velocity: AngularVelocity,

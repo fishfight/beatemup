@@ -2,7 +2,9 @@ use bevy::{
     ecs::system::SystemParam,
     hierarchy::DespawnRecursiveExt,
     prelude::{Camera, Commands, Entity, Query, Transform, With, Without},
+    window::PrimaryWindow,
 };
+use bevy_parallax::ParallaxCameraComponent;
 
 /// System parameter that can be used to reset the game world.
 ///
@@ -12,8 +14,9 @@ use bevy::{
 #[derive(SystemParam)]
 pub struct ResetController<'w, 's> {
     commands: Commands<'w, 's>,
-    camera_transform: Query<'w, 's, &'static mut Transform, With<Camera>>,
-    entities_to_despawn: Query<'w, 's, Entity, Without<Camera>>,
+    camera_transform:
+        Query<'w, 's, &'static mut Transform, (With<Camera>, With<ParallaxCameraComponent>)>,
+    entities_to_despawn: Query<'w, 's, Entity, (Without<Camera>, Without<PrimaryWindow>)>,
 }
 
 impl<'w, 's> ResetController<'w, 's> {

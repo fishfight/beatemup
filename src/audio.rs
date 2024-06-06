@@ -2,10 +2,10 @@
 // Also for cleanness (named channels have evident function), we don't use the default channel.
 use rand::{prelude::SliceRandom, thread_rng};
 
-use bevy::{prelude::*, utils::HashMap};
-use bevy_egui::{egui::output::OutputEvent, EguiContext};
+use bevy::{prelude::*, utils::HashMap, window::PrimaryWindow};
+use bevy_egui::{egui::output::OutputEvent, EguiOutput};
 use bevy_kira_audio::{AudioApp, AudioChannel, AudioControl, AudioSource};
-use iyes_loopless::prelude::*;
+// use iyes_loopless::prelude::*;
 
 use crate::{
     animation::Animation,
@@ -35,15 +35,15 @@ pub struct AudioPlugin;
 
 impl Plugin for AudioPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(bevy_kira_audio::AudioPlugin)
+        app.add_plugins(bevy_kira_audio::AudioPlugin)
             .add_audio_channel::<MusicChannel>()
             .add_audio_channel::<EffectsChannel>()
-            .add_startup_system(set_audio_channels_volume)
-            .add_enter_system(GameState::InGame, play_level_music)
-            .add_exit_system(GameState::InGame, stop_level_music)
-            .add_system_to_stage(
-                CoreStage::PostUpdate,
-                animation_audio_playback.run_in_state(GameState::InGame),
+            .add_systems(Startup, set_audio_channels_volume)
+            .add_systems(OnEnter(GameState::InGame), play_level_music)
+            .add_systems(OnExit(GameState::InGame), stop_level_music)
+            .add_systems(
+                PostUpdate,
+                animation_audio_playback.run_if(in_state(GameState::InGame)),
             );
     }
 }
@@ -99,26 +99,30 @@ pub fn animation_audio_playback(
 /// Plays main menu sounds
 pub fn main_menu_sounds(
     game: Res<GameMeta>,
-    mut context: ResMut<EguiContext>,
+    // mut context: Query<&EguiContext, With<PrimaryWindow>>,
+    mut egui_output: Query<&EguiOutput, With<PrimaryWindow>>,
     effects_channel: Res<AudioChannel<EffectsChannel>>,
 ) {
-    for event in &context.ctx_mut().output().events {
-        if let OutputEvent::Clicked(info) = event {
-            // if let Ok(info.label.as_ref()) {}
-            if let Some(label_ref) = info.label.as_ref() {
-                if label_ref == "Start Game" {
-                    // == "Start Game" {
-                    //Play down_play_button
-                    effects_channel.play(game.main_menu.play_button_sound_handle.clone_weak());
-                } else {
-                    //Play one of the down button audios, except down_play_button
-                    effects_channel.play(
-                        game.main_menu
-                            .button_sound_handles
-                            .choose(&mut thread_rng())
-                            .expect("No button sounds")
-                            .clone_weak(),
-                    );
+    if let Ok(output) = egui_output.get_single_mut() {
+        for event in output.platform_output.events.as_slice() {
+            // for event in &context.get_single_mut().unwrap().get_mut().output().events {
+            if let OutputEvent::Clicked(info) = event {
+                // if let Ok(info.label.as_ref()) {}
+                if let Some(label_ref) = info.label.as_ref() {
+                    if label_ref == "Start Game" {
+                        // == "Start Game" {
+                        //Play down_play_button
+                        effects_channel.play(game.main_menu.play_button_sound_handle.clone_weak());
+                    } else {
+                        //Play one of the down button audios, except down_play_button
+                        effects_channel.play(
+                            game.main_menu
+                                .button_sound_handles
+                                .choose(&mut thread_rng())
+                                .expect("No button sounds")
+                                .clone_weak(),
+                        );
+                    }
                 }
             }
         }

@@ -7,7 +7,7 @@ use bevy::{
     time::{Time, Timer},
     utils::HashMap,
 };
-use iyes_loopless::condition::ConditionSet;
+// use iyes_loopless::condition::ConditionSet;
 use serde::{de::SeqAccess, Deserializer};
 
 pub struct AnimationPlugin;
@@ -18,21 +18,25 @@ impl Plugin for AnimationPlugin {
             // Register reflect types
             .register_type::<Facing>()
             // Add systems
-            .add_system_set_to_stage(
-                CoreStage::Last,
-                ConditionSet::new()
-                    .run_in_state(GameState::InGame)
-                    .with_system(animation_flipping)
-                    .with_system(animation_cycling)
-                    .into(),
+            // should probably be postupdate?
+            .add_systems(
+                Last,
+                (animation_flipping, animation_cycling).run_if(in_state(GameState::InGame)),
             );
+        // .add_system_set_to_stage(
+        //     CoreStage::Last,
+        //     ConditionSet::new()
+        //         .run_in_state(GameState::InGame)
+        //         .with_system(animation_flipping)
+        //         .with_system(animation_cycling)
+        //         .into(),
+        // );
     }
 }
 
 /// Bundle for animated sprite sheets
 #[derive(Bundle, Clone)]
 pub struct AnimatedSpriteSheetBundle {
-    #[bundle]
     pub sprite_sheet: SpriteSheetBundle,
     pub animation: Animation,
 }
